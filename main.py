@@ -31,6 +31,8 @@ def square(size_variants):
 
         if code == 200:
             amount = int(amount) + 1
+            if amount == 15:
+                return amount
         else:
             amount = int(amount) - 1
             break
@@ -50,6 +52,8 @@ def discordBot():
     main(client)
 
     client.run(token)
+
+
 
 def main(client):
 
@@ -100,6 +104,7 @@ def main(client):
                 sizes_name.append(sizess)
 
         with ThreadPoolExecutor(max_workers=50) as executor:
+
             results = executor.map(square, size_variants)
 
         for result in results:
@@ -127,6 +132,7 @@ def main(client):
         embed.set_footer(text="SneakerGallery Stock Checker",
                          icon_url="https://cdn.myshoptet.com/usr/www.sneakergallery.cz/user/logos/bilapruh_copy.png")
         await ctx.send(embed=embed)
+        print("Checked stock with link " + args)
 
     @client.command()
     async def sc(ctx, *, args):
@@ -168,6 +174,7 @@ def main(client):
         embed.set_footer(text="Section Prague Stock Checker",
                          icon_url="https://sectionstore.cz/wp-content/uploads/2020/02/male_logo.png")
         await ctx.send(embed=embed)
+        print("Checked stock with link " + args)
 
 if __name__ == '__main__':
     discordBot()
