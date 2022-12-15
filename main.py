@@ -2,7 +2,6 @@ import requests, discord, json
 from discord.ext import commands
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
-
 def square(size_variants):
 
     amount = 1
@@ -31,6 +30,8 @@ def square(size_variants):
 
         if code == 200:
             amount = int(amount) + 1
+            if amount == 15:
+                return amount
         else:
             amount = int(amount) - 1
             break
@@ -51,12 +52,21 @@ def discordBot():
 
     client.run(token)
 
+
+
 def main(client):
 
     @client.command()
     async def sg(ctx, *, args):
 
         r = requests.Session()
+        response = r.get("https://api.exchangerate.host/latest?base=EUR").json()
+        if response["success"] == True:
+            czRate = response["rates"]["CZK"]
+        else:
+            print("Exchange api is dead, using 24.5czk...")
+            czRate = 24.5
+
         response = r.get(args)
         parser = BeautifulSoup(response.content, "html.parser")
         global productId
@@ -72,7 +82,7 @@ def main(client):
         price = price.strip()
 
         priceCZK = str(price) + " CZK"
-        priceEUR = int(price) / 24.5
+        priceEUR = int(price) / czRate
         payoutCZK = int(price) * 0.85
         payoutEUR = int(priceEUR) * 0.85
 
@@ -100,6 +110,7 @@ def main(client):
                 sizes_name.append(sizess)
 
         with ThreadPoolExecutor(max_workers=50) as executor:
+
             results = executor.map(square, size_variants)
 
         for result in results:
@@ -108,7 +119,9 @@ def main(client):
         msg = ""
         for context_index in range(0, len(sizes_name)):
 
-            if int(stock[context_index]) <= 2:
+            if int(stock[context_index]) == 0:
+                color = ":purple_circle: "
+            elif int(stock[context_index]) <= 2:
                 color = ":green_circle: "
             elif int(stock[context_index]) <= 4:
                 color = ":orange_circle: "
@@ -124,9 +137,12 @@ def main(client):
         embed.add_field(name="Sizes", value=msg, inline=True)
         embed.add_field(name="Price", value=price, inline=True)
         embed.add_field(name="Payout", value=payout, inline=True)
+        if int(stock[context_index]) >= 14:
+            embed.add_field(name="Stock", value="Stock Unlimited.", inline=True)
         embed.set_footer(text="SneakerGallery Stock Checker",
                          icon_url="https://cdn.myshoptet.com/usr/www.sneakergallery.cz/user/logos/bilapruh_copy.png")
         await ctx.send(embed=embed)
+        print("Checked stock with link " + args)
 
     @client.command()
     async def sc(ctx, *, args):
@@ -134,11 +150,12 @@ def main(client):
         r = requests.session()
         response = r.get(args)
         parser = BeautifulSoup(response.content, "html.parser")
-        form = parser.find("form", class_="variations_form cart xt_woovs-single-product")
+        form = parser.find("form", class_="variations_form cart")
         img = parser.find("img", class_="wp-post-image")["data-src"]
         title = parser.find("meta", property="og:title")["content"]
         price = parser.find("meta", property="product:price:amount")["content"]
         product_variants = json.loads(form["data-product_variations"])
+
         msg = ""
 
         payout = int(price) * 0.85
@@ -168,6 +185,7 @@ def main(client):
         embed.set_footer(text="Section Prague Stock Checker",
                          icon_url="https://sectionstore.cz/wp-content/uploads/2020/02/male_logo.png")
         await ctx.send(embed=embed)
+        print("Checked stock with link " + args)
 
 if __name__ == '__main__':
     discordBot()
