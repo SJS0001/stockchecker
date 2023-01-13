@@ -2,6 +2,7 @@ import requests, discord, json
 from discord.ext import commands
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor
+
 def square(size_variants):
 
     amount = 1
@@ -39,111 +40,124 @@ def square(size_variants):
     return amount
 
 def discordBot():
+    try:
+        client = commands.Bot(command_prefix='.', intents=discord.Intents.all())
+        token = "MTAyNzE3MTgxMDI3NTQ5NTk5OA.Gy01yX.KaKw1kduRRYq_JfTYhxVcSajXEXYsNzxWIoSlg"
 
-    client = commands.Bot(command_prefix='.', intents=discord.Intents.all())
-    token = "MTAyNzE3MTgxMDI3NTQ5NTk5OA.Gy01yX.KaKw1kduRRYq_JfTYhxVcSajXEXYsNzxWIoSlg"
+        @client.event
+        async def on_ready():
+            await client.change_presence(status=discord.Status.online, activity=discord.Game('Checking stock... | .sc / .sg'))
+            print("Bot is ready")
 
-    @client.event
-    async def on_ready():
-        await client.change_presence(status=discord.Status.online, activity=discord.Game('Checking stock... | .sc'))
-        print("Bot is ready")
+        main(client)
 
-    main(client)
-
-    client.run(token)
-
+        client.run(token)
+    except:
+        discordBot()
 
 
 def main(client):
 
     @client.command()
-    async def sg(ctx, *, args):
+    async def sg(ctx, *, message):
 
         r = requests.Session()
         response = r.get("https://api.exchangerate.host/latest?base=EUR").json()
         if response["success"] == True:
             czRate = response["rates"]["CZK"]
         else:
-            print("Exchange api is dead, using 24.5czk...")
+            print("Exchange rate api is dead, using default set 24.5czk...")
             czRate = 24.5
 
-        response = r.get(args)
-        parser = BeautifulSoup(response.content, "html.parser")
-        global productId
-        global priceId
-        productId = parser.find("input", attrs={"name": "productId"})["value"]
-        priceId = parser.find("input", attrs={"name": "priceId"})["value"]
-        scrapeSizes = parser.find("select", attrs={"class": "hidden-split-parameter parameter-id-5"})
-        img = parser.find("meta", attrs={"property": "og:image"})["content"]
-        title = parser.find("meta", attrs={"property": "og:title"})["content"]
-        price = parser.find("span", attrs={"class": "price-final-holder"}).get_text()
-        price = price.replace("Kč", "")
-        price = price.replace(" ", "")
-        price = price.strip()
+        if message.startswith("https://"):
+            url = message
+        else:
+            search = r.get(f"""https://www.sneakergallery.cz/vyhledavani/?string={message}""")
+            searchParser = BeautifulSoup(search.content, "html.parser")
+            try:
+                productNameSearch = searchParser.find("a", attrs={"data-micro": "url"})["href"]
+                url = "https://www.sneakergallery.cz" + str(productNameSearch)
+            except:
+                print("Wrong keywords given.")
+        try:
+            response = r.get(url)
+            parser = BeautifulSoup(response.content, "html.parser")
+            global productId
+            global priceId
+            productId = parser.find("input", attrs={"name": "productId"})["value"]
+            priceId = parser.find("input", attrs={"name": "priceId"})["value"]
+            scrapeSizes = parser.find("select", attrs={"class": "hidden-split-parameter parameter-id-5"})
+            img = parser.find("meta", attrs={"property": "og:image"})["content"]
+            title = parser.find("meta", attrs={"property": "og:title"})["content"]
+            price = parser.find("span", attrs={"class": "price-final-holder"}).get_text()
+            price = price.replace("Kč", "")
+            price = price.replace(" ", "")
+            price = price.strip()
+    
+            priceCZK = str(price) + " CZK"
+            priceEUR = int(price) / czRate
+            payoutCZK = int(price) * 0.85
+            payoutEUR = int(priceEUR) * 0.85
 
-        priceCZK = str(price) + " CZK"
-        priceEUR = int(price) / czRate
-        payoutCZK = int(price) * 0.85
-        payoutEUR = int(priceEUR) * 0.85
+            priceEUR = round(priceEUR)
+            payoutCZK = round(payoutCZK)
+            payoutEUR = round(payoutEUR)
 
-        priceEUR = round(priceEUR)
-        payoutCZK = round(payoutCZK)
-        payoutEUR = round(payoutEUR)
+            priceEUR = str(priceEUR) + " EUR"
+            payoutCZK = str(payoutCZK) + " CZK"
+            payoutEUR = str(payoutEUR) + " EUR"
+            variants = scrapeSizes.find_all("option")
 
-        priceEUR = str(priceEUR) + " EUR"
-        payoutCZK = str(payoutCZK) + " CZK"
-        payoutEUR = str(payoutEUR) + " EUR"
-        variants = scrapeSizes.find_all("option")
+            size_variants = []
+            sizes_name = []
+            stock = []
 
-        size_variants = []
-        sizes_name = []
-        stock = []
+            for id in variants:
+                soup = BeautifulSoup(str(id), 'html.parser')
+                add = soup.find("option")["value"]
+                sizess = soup.get_text()
 
-        for id in variants:
-            soup = BeautifulSoup(str(id), 'html.parser')
-            add = soup.find("option")["value"]
-            sizess = soup.get_text()
+                if add != "":
+                    size_variants.append(add)
+                if sizess != "Zvolte variantu":
+                    sizes_name.append(sizess)
 
-            if add != "":
-                size_variants.append(add)
-            if sizess != "Zvolte variantu":
-                sizes_name.append(sizess)
+            with ThreadPoolExecutor(max_workers=50) as executor:
 
-        with ThreadPoolExecutor(max_workers=50) as executor:
+                results = executor.map(square, size_variants)
 
-            results = executor.map(square, size_variants)
+            for result in results:
+                stock.append(result)
 
-        for result in results:
-            stock.append(result)
+            msg = ""
+            for context_index in range(0, len(sizes_name)):
 
-        msg = ""
-        for context_index in range(0, len(sizes_name)):
+                if int(stock[context_index]) == 0:
+                    color = ":purple_circle: "
+                elif int(stock[context_index]) <= 2:
+                    color = ":green_circle: "
+                elif int(stock[context_index]) <= 4:
+                    color = ":orange_circle: "
+                elif int(stock[context_index]) >= 5:
+                    color = ":red_circle: "
 
-            if int(stock[context_index]) == 0:
-                color = ":purple_circle: "
-            elif int(stock[context_index]) <= 2:
-                color = ":green_circle: "
-            elif int(stock[context_index]) <= 4:
-                color = ":orange_circle: "
-            elif int(stock[context_index]) >= 5:
-                color = ":red_circle: "
+                msg = msg + str(color) + sizes_name[context_index] + " [" + str(stock[context_index]) + "]\n"
 
-            msg = msg + str(color) + sizes_name[context_index] + " [" + str(stock[context_index]) + "]\n"
-
-        price = str(priceCZK) + " ~ " + str(priceEUR)
-        payout = payoutCZK + " ~ " + payoutEUR
-        embed = discord.Embed(title=title, url=args, colour=discord.Color.dark_grey())
-        embed.set_thumbnail(url=img)
-        embed.add_field(name="Sizes", value=msg, inline=True)
-        embed.add_field(name="Price", value=price, inline=True)
-        embed.add_field(name="Payout", value=payout, inline=True)
-        if int(stock[context_index]) >= 14:
-            embed.add_field(name="Stock", value="Stock Unlimited.", inline=True)
-        embed.set_footer(text="SneakerGallery Stock Checker",
-                         icon_url="https://cdn.myshoptet.com/usr/www.sneakergallery.cz/user/logos/bilapruh_copy.png")
-        await ctx.send(embed=embed)
-        print("Checked stock with link " + args)
-
+            price = str(priceCZK) + " ~ " + str(priceEUR)
+            payout = payoutCZK + " ~ " + payoutEUR
+            embed = discord.Embed(title=title, url=url, colour=discord.Color.dark_grey())
+            embed.set_thumbnail(url=img)
+            embed.add_field(name="Sizes", value=msg, inline=True)
+            embed.add_field(name="Price", value=price, inline=True)
+            embed.add_field(name="Payout", value=payout, inline=True)
+            if int(stock[context_index]) >= 14:
+                embed.add_field(name="Stock", value="Stock Unlimited.", inline=True)
+            embed.set_footer(text="SneakerGallery Stock Checker",
+                            icon_url="https://cdn.myshoptet.com/usr/www.sneakergallery.cz/user/logos/bilapruh_copy.png")
+            await ctx.send(embed=embed)
+            print("Checked stock with link or kws " + url)
+        except:
+            await ctx.send(f"Wrong keywords given.")
     @client.command()
     async def sc(ctx, *, args):
 
