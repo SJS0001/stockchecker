@@ -31,7 +31,7 @@ def square(size_variants):
 
         if code == 200:
             amount = int(amount) + 1
-            if amount == 15:
+            if amount == 20:
                 return amount
         else:
             amount = int(amount) - 1
@@ -130,7 +130,12 @@ def main(client):
                 stock.append(result)
 
             msg = ""
+            global totalStockSg
+            totalStockSg = 0
+
             for context_index in range(0, len(sizes_name)):
+                
+                totalStockSg += int(stock[context_index])
 
                 if int(stock[context_index]) == 0:
                     color = ":purple_circle: "
@@ -150,57 +155,78 @@ def main(client):
             embed.add_field(name="Sizes", value=msg, inline=True)
             embed.add_field(name="Price", value=price, inline=True)
             embed.add_field(name="Payout", value=payout, inline=True)
-            if int(stock[context_index]) >= 14:
+            embed.add_field(name="Total Stock", value=totalStockSg, inline=True)
+            if int(stock[context_index]) >= 19:
                 embed.add_field(name="Stock", value="Stock Unlimited.", inline=True)
             embed.set_footer(text="SneakerGallery Stock Checker",
                             icon_url="https://cdn.myshoptet.com/usr/www.sneakergallery.cz/user/logos/bilapruh_copy.png")
             await ctx.send(embed=embed)
-            print("Checked stock with link or kws " + url)
+            print("Checked stock with link or kws: " + url)
         except:
             await ctx.send(f"Wrong keywords given.")
+
     @client.command()
     async def sc(ctx, *, args):
-
+        
         r = requests.session()
-        response = r.get(args)
-        parser = BeautifulSoup(response.content, "html.parser")
-        form = parser.find("form", class_="variations_form cart")
-        img = parser.find("img", class_="wp-post-image")["data-src"]
-        title = parser.find("meta", property="og:title")["content"]
-        price = parser.find("meta", property="product:price:amount")["content"]
-        product_variants = json.loads(form["data-product_variations"])
 
-        msg = ""
+        if args.startswith("https://"):
+            url = args
+        else:
+            search = r.get(f"""https://sectionstore.cz/?s={args}&post_type=product""")
+            searchParser = BeautifulSoup(search.content, "html.parser")
+            try:
+                productNameSearch = searchParser.find("span", attrs={"class": "gtm4wp_productdata"})["data-gtm4wp_product_url"]
+                url = productNameSearch
+            except:
+                print("Wrong keywords given.")
+        try:
+            response = r.get(url)
+            parser = BeautifulSoup(response.content, "html.parser")
+            form = parser.find("form", class_="variations_form cart")
+            img = parser.find("img", class_="wp-post-image")["data-src"]
+            title = parser.find("meta", property="og:title")["content"]
+            price = parser.find("meta", property="product:price:amount")["content"]
+            product_variants = json.loads(form["data-product_variations"])
 
-        payout = int(price) * 0.85
-        payout = round(payout)
-        payout = str(payout) + " CZK"
-        for size in product_variants:
+            msg = ""
 
-            size_name = size["attributes"]["attribute_pa_velikost"]
-            stock = size["max_qty"]
+            payout = int(price) * 0.85
+            payout = round(payout)
+            payout = str(payout) + " CZK"
+            global totalStockSc
+            totalStockSc = 0
 
-            if int(stock) <= 2:
-                color = ":green_circle: "
-            elif int(stock) <= 4:
-                color = ":orange_circle: "
-            elif int(stock) >= 5:
-                color = ":red_circle: "
+            for size in product_variants:
 
-            msg += str(color) + str(size_name) + " [" + str(stock) + "]" + "\n"
+                size_name = size["attributes"]["attribute_pa_velikost"]
+                stock = size["max_qty"]
+                
+                totalStockSc += int(stock)
+                if int(stock) <= 2:
+                    color = ":green_circle: "
+                elif int(stock) <= 4:
+                    color = ":orange_circle: "
+                elif int(stock) >= 5:
+                    color = ":red_circle: "
 
-        price = str(price) + " CZK"
+                msg += str(color) + str(size_name) + " [" + str(stock) + "]" + "\n"
 
-        embed = discord.Embed(title=title, url=args, colour=discord.Color.blue())
-        embed.set_thumbnail(url=img)
-        embed.add_field(name="Sizes", value=msg, inline=True)
-        embed.add_field(name="Price", value=price, inline=True)
-        embed.add_field(name="Payout", value=payout, inline=True)
-        embed.set_footer(text="Section Prague Stock Checker",
-                         icon_url="https://sectionstore.cz/wp-content/uploads/2020/02/male_logo.png")
-        await ctx.send(embed=embed)
-        print("Checked stock with link " + args)
+            print(totalStockSc)
+            price = str(price) + " CZK"
 
+            embed = discord.Embed(title=title, url=url, colour=discord.Color.blue())
+            embed.set_thumbnail(url=img)
+            embed.add_field(name="Sizes", value=msg, inline=True)
+            embed.add_field(name="Price", value=price, inline=True)
+            embed.add_field(name="Payout", value=payout, inline=True)
+            embed.add_field(name="Total Stock", value=totalStockSc, inline=True)
+            embed.set_footer(text="Section Prague Stock Checker",
+                            icon_url="https://sectionstore.cz/wp-content/uploads/2020/02/male_logo.png")
+            await ctx.send(embed=embed)
+            print("Checked stock with link or kws: " + args)
+        except:
+            await ctx.send(f"Wrong keywords given.")
 if __name__ == '__main__':
     discordBot()
 
