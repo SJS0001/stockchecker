@@ -42,7 +42,7 @@ def square(size_variants):
 def discordBot():
     try:
         client = commands.Bot(command_prefix='.', intents=discord.Intents.all())
-        token = "MTAyNzE3MTgxMDI3NTQ5NTk5OA.Gy01yX.KaKw1kduRRYq_JfTYhxVcSajXEXYsNzxWIoSlg"
+        token = ""
 
         @client.event
         async def on_ready():
